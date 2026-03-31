@@ -1,6 +1,8 @@
 requests
 pandas
-sentence-transformers
 scikit-learn
-ollama
 streamlit
+ollama
+python-dotenv
+sentence-transformers
+torch>=2.4

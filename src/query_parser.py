@@ -1,6 +1,7 @@
 import json
 import re
 import ollama
+from src.prompts import QUERY_REWRITE_SYSTEM_PROMPT
 
 
 def clean_llm_json_response(text: str) -> str:
@@ -14,26 +15,12 @@ def clean_llm_json_response(text: str) -> str:
 
 
 def rewrite_query_with_llm(user_query: str):
-    prompt = f"""
-Rewrite the following user query into structured search keywords for a book recommendation system.
-
-Return ONLY raw JSON in this exact format:
-{{
-  "primary_keywords": ["keyword1", "keyword2"],
-  "secondary_keywords": ["keyword3", "keyword4"],
-  "broad_keywords": ["keyword5", "keyword6"]
-}}
-
-Do not use markdown.
-Do not use triple backticks.
-Do not add explanations.
-
-User query: {user_query}
-"""
-
     response = ollama.chat(
         model="gemma3",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[
+            {"role": "system", "content": QUERY_REWRITE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_query}
+        ]
     )
 
     output_text = response["message"]["content"]

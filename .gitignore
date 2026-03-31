@@ -23,3 +23,5 @@ data/cache/
 vector_store/
 models/
 *.sqlite3
+
+.env 
