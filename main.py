@@ -37,41 +37,47 @@ def dedupe_list(items: list[str]) -> list[str]:
 
 
 def build_search_tag_groups(parsed_query: dict, user_query: str) -> dict:
-    must_have = dedupe_list(parsed_query.get("must_have_tags", []))
-    nice_to_have = dedupe_list(parsed_query.get("nice_to_have_tags", []))
-    broad = dedupe_list(parsed_query.get("broad_tags", []))
+    primary = dedupe_list(parsed_query.get("primary_search_tags", []))
+    secondary = dedupe_list(parsed_query.get("secondary_search_tags", []))
+    vibe = dedupe_list(parsed_query.get("vibe_tags", []))
+    must_have_tropes = dedupe_list(parsed_query.get("must_have_tropes", []))
+    avoid_terms = dedupe_list(parsed_query.get("avoid_terms", []))
 
     return {
-        "must_have": must_have,
-        "nice_to_have": nice_to_have,
-        "broad": broad,
+        "primary": primary,
+        "secondary": secondary,
+        "vibe": vibe,
+        "must_have_tropes": must_have_tropes,
+        "avoid_terms": avoid_terms,
         "fallback": [clean_search_text(user_query)]
     }
 
 
 def build_api_queries(tag_groups: dict) -> list[str]:
-    must_have = tag_groups["must_have"]
-    nice_to_have = tag_groups["nice_to_have"]
-    broad = tag_groups["broad"]
+    primary = tag_groups["primary"]
+    secondary = tag_groups["secondary"]
     fallback = tag_groups["fallback"]
 
     queries = []
 
-    # single-tag searches first
-    queries.extend(must_have[:3])
-    queries.extend(nice_to_have[:2])
-    queries.extend(broad[:1])
+    # strongest single retrieval terms
+    queries.extend(primary[:3])
 
-    # a couple of tiny combo searches
-    if len(must_have) >= 2:
-        queries.append(f"{must_have[0]} {must_have[1]}")
-    if must_have and nice_to_have:
-        queries.append(f"{must_have[0]} {nice_to_have[0]}")
+    # strongest combinations first
+    if len(primary) >= 2:
+        queries.append(f"{primary[0]} {primary[1]}")
+    if len(primary) >= 3:
+        queries.append(f"{primary[0]} {primary[2]}")
+    if primary and secondary:
+        queries.append(f"{primary[0]} {secondary[0]}")
 
-    # fallback to original request
+    # only a light use of secondary tags
+    queries.extend(secondary[:1])
+
+    # fallback last
     queries.extend(fallback)
 
-    return dedupe_list(queries)[:6]
+    return dedupe_list(queries)[:7]
 
 
 def collect_google_results(search_queries: list[str], max_total: int = 10, per_query: int = 2) -> list:
@@ -168,6 +174,18 @@ def build_final_query(base_query: str, preferences: list[str]) -> str:
     return f"{base_query}. Extra preferences: {'; '.join(preferences)}"
 
 
+def build_rerank_query(user_query: str, tag_groups: dict) -> str:
+    parts = [user_query]
+
+    if tag_groups["must_have_tropes"]:
+        parts.append("Must-have tropes: " + ", ".join(tag_groups["must_have_tropes"]))
+
+    if tag_groups["vibe"]:
+        parts.append("Desired vibe: " + ", ".join(tag_groups["vibe"]))
+
+    return " | ".join(parts)
+
+
 def run_pipeline(user_query: str, model):
     print("\nOriginal query:")
     print(user_query)
@@ -210,19 +228,31 @@ def run_pipeline(user_query: str, model):
         return
 
     book_embeddings = embed_books(model, usable_books)
-    query_embedding = embed_query(model, user_query)
+    rerank_query = build_rerank_query(user_query, tag_groups)
+    query_embedding = embed_query(model, rerank_query)
 
     top_books = rank_books_by_similarity(
         query_embedding=query_embedding,
         book_embeddings=book_embeddings,
         books=usable_books,
-        top_k=3
+        top_k=3,
+        primary_tags=tag_groups["primary"],
+        secondary_tags=tag_groups["secondary"],
+        must_have_tropes=tag_groups["must_have_tropes"],
+        vibe_tags=tag_groups["vibe"],
+        avoid_terms=tag_groups["avoid_terms"]
     )
 
     print("\nTop 3 books:")
     for i, book in enumerate(top_books, start=1):
         print(f"\n{i}. {book['title']} by {book['author']}")
-        print(f"Score: {book['similarity_score']:.4f}")
+        print(f"Semantic score: {book['similarity_score']:.4f}")
+        print(f"Final score: {book['final_score']:.4f}")
+        print(f"Primary hits: {book.get('primary_hits', 0)}")
+        print(f"Secondary hits: {book.get('secondary_hits', 0)}")
+        print(f"Must-have hits: {book.get('must_have_hits', 0)}")
+        print(f"Vibe hits: {book.get('vibe_hits', 0)}")
+        print(f"Avoid hits: {book.get('avoid_hits', 0)}")
         print(f"Source: {book['source']}")
         print(f"Categories: {book['categories']}")
         print(f"Published year: {book.get('published_year', '')}")
