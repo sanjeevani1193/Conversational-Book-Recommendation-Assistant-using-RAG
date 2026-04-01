@@ -16,12 +16,10 @@ EXPECTED_KEYS = [
 def clean_llm_json_response(text: str) -> str:
     text = text.strip()
 
-    # Case 1: plain fenced JSON anywhere in the response
     fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
     if fenced_match:
         return fenced_match.group(1).strip()
 
-    # Case 2: raw JSON object somewhere in the response
     json_match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if json_match:
         return json_match.group(0).strip()
@@ -61,27 +59,87 @@ def fallback_tag_parse(user_query: str) -> dict:
     must_have = []
     avoid = []
 
-    if "princess" in query or "prince" in query or "royal" in query:
-        primary.append("royal romance")
+    # Nonfiction / self-help / psychology / productivity
+    if any(word in query for word in ["discipline", "self control", "self-control", "willpower"]):
+        primary.extend(["self-discipline", "self-control", "habit building"])
+        secondary.extend(["productivity", "behavior change", "personal development"])
+        vibe.extend(["practical", "motivational", "actionable"])
+        avoid.extend(["fiction", "romance"])
 
-    if "bodyguard" in query:
-        primary.append("bodyguard romance")
-        must_have.append("bodyguard")
+    if any(word in query for word in ["habit", "habits", "routine", "consistency"]):
+        if "habit building" not in primary:
+            primary.append("habit building")
+        secondary.extend(["routines", "behavior change", "personal development"])
+        vibe.extend(["practical", "actionable"])
 
-    if "not allowed" in query or "forbidden" in query or "secret" in query:
-        primary.append("forbidden romance")
-        secondary.append("secret romance")
-        must_have.append("forbidden love")
+    if any(word in query for word in ["productivity", "focus", "procrastination"]):
+        primary.extend(["productivity", "focus", "time management"])
+        secondary.extend(["motivation", "self-discipline", "personal development"])
+        vibe.extend(["practical", "clear", "actionable"])
+        avoid.extend(["fiction"])
 
-    if "love" in query:
-        vibe.append("romantic tension")
+    if any(word in query for word in ["psychology", "mindset", "mental health", "healing", "grief", "trauma"]):
+        primary.extend(["psychology", "mental health", "personal growth"])
+        secondary.extend(["healing", "mindset", "emotional wellbeing"])
+        vibe.extend(["reflective", "thought-provoking", "emotional"])
+
+    if any(word in query for word in ["business", "career", "leadership", "success"]):
+        primary.extend(["business", "leadership", "career development"])
+        secondary.extend(["decision making", "productivity", "personal development"])
+        vibe.extend(["practical", "insightful"])
+
+    if any(word in query for word in ["philosophy", "meaning", "purpose"]):
+        primary.extend(["philosophy", "meaning of life", "self-reflection"])
+        secondary.extend(["purpose", "human nature", "thought-provoking"])
+        vibe.extend(["reflective", "deep"])
+
+    if any(word in query for word in ["biography", "memoir", "life story"]):
+        primary.extend(["biography", "memoir"])
+        secondary.extend(["inspirational", "personal journey"])
+        vibe.extend(["reflective", "emotional"])
+
+    # Fiction
+    if any(word in query for word in ["fantasy", "magic", "kingdom", "dragon"]):
+        primary.append("fantasy")
+        secondary.extend(["magic", "adventure"])
+        vibe.extend(["immersive", "atmospheric"])
+
+    if any(word in query for word in ["thriller", "suspense", "mystery", "crime"]):
+        primary.extend(["thriller", "mystery"])
+        secondary.extend(["suspense", "crime"])
+        vibe.extend(["tense", "fast-paced"])
+
+    if any(word in query for word in ["romance", "love story", "love"]):
+        primary.append("romance")
+        vibe.extend(["emotional", "character-driven"])
+
+    if "enemies to lovers" in query:
+        secondary.append("enemies to lovers")
+        must_have.append("enemies to lovers")
+
+    if "slow burn" in query:
+        secondary.append("slow burn")
+        vibe.append("slow burn")
+
+    if any(word in query for word in ["dark", "darker tone", "dark tone"]):
+        vibe.append("dark")
+
+    def dedupe_keep_order(items):
+        seen = set()
+        output = []
+        for item in items:
+            cleaned = item.strip().lower()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                output.append(item)
+        return output[:4]
 
     return {
-        "primary_search_tags": primary[:4],
-        "secondary_search_tags": secondary[:4],
-        "vibe_tags": vibe[:4],
-        "must_have_tropes": must_have[:4],
-        "avoid_terms": avoid[:4],
+        "primary_search_tags": dedupe_keep_order(primary),
+        "secondary_search_tags": dedupe_keep_order(secondary),
+        "vibe_tags": dedupe_keep_order(vibe),
+        "must_have_tropes": dedupe_keep_order(must_have),
+        "avoid_terms": dedupe_keep_order(avoid),
     }
 
 
@@ -99,7 +157,15 @@ def rewrite_query_with_llm(user_query: str):
 
     try:
         parsed = json.loads(cleaned_text)
-        return normalize_parsed_query(parsed)
+        normalized = normalize_parsed_query(parsed)
+
+        # guardrail: if the model returns nothing useful, use fallback
+        total_tags = sum(len(normalized[key]) for key in EXPECTED_KEYS)
+        if total_tags == 0:
+            return fallback_tag_parse(user_query)
+
+        return normalized
+
     except json.JSONDecodeError:
         print("\nWarning: Ollama did not return clean JSON. Falling back to heuristic tags.")
         print(f"Raw Ollama output:\n{output_text}\n")

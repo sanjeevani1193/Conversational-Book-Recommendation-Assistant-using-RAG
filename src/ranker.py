@@ -1,4 +1,5 @@
 from sklearn.metrics.pairwise import cosine_similarity
+from typing import Optional
 
 
 def safe_text(book: dict) -> str:
@@ -10,7 +11,7 @@ def safe_text(book: dict) -> str:
     ]).lower()
 
 
-def count_matches(text: str, terms: list[str]) -> int:
+def count_matches(text: str, terms: list) -> int:
     matches = 0
     for term in terms:
         term = (term or "").strip().lower()
@@ -24,11 +25,11 @@ def rank_books_by_similarity(
     book_embeddings,
     books: list,
     top_k: int = 3,
-    primary_tags: list[str] | None = None,
-    secondary_tags: list[str] | None = None,
-    must_have_tropes: list[str] | None = None,
-    vibe_tags: list[str] | None = None,
-    avoid_terms: list[str] | None = None
+    primary_tags: Optional[list] = None,
+    secondary_tags: Optional[list] = None,
+    must_have_tropes: Optional[list] = None,
+    vibe_tags: Optional[list] = None,
+    avoid_terms: Optional[list] = None
 ) -> list:
     primary_tags = primary_tags or []
     secondary_tags = secondary_tags or []

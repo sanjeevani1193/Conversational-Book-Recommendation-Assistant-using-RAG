@@ -86,8 +86,10 @@ def extract_open_library_cover(item: dict) -> str:
         return f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
     return ""
 
+from typing import Optional
 
-def normalize_open_library(items: list, detail_lookup: dict | None = None) -> list:
+# def normalize_open_library(items: list, detail_lookup: dict | None = None) -> list:
+def normalize_open_library(items: list, detail_lookup: Optional[dict] = None) -> list:
     detail_lookup = detail_lookup or {}
     normalized = []
 

@@ -2,6 +2,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ _LAST_OL_REQUEST_TIME = 0.0
 MIN_OL_INTERVAL = 0.40  # safely below 3 req/sec
 
 
-def throttled_openlibrary_get(url: str, params: dict | None = None) -> dict:
+def throttled_openlibrary_get(url: str, params: Optional[dict] = None) -> dict:
     global _LAST_OL_REQUEST_TIME
 
     now = time.time()
