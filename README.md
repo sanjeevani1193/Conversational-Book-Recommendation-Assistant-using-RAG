@@ -123,7 +123,6 @@ The user receives a curated list of book recommendations through the Streamlit a
 
 ## Project Structure
 
-```bash
 Conversational-Book-Recommendation-Assistant-using-RAG/
 │
 ├── app/
@@ -149,3 +148,11 @@ Conversational-Book-Recommendation-Assistant-using-RAG/
 ├── .gitignore
 ├── README.md
 └── main.py
+
+## Installation
+
+### 1. Clone the repository
+Clone the project from GitHub and move into the project folder.
+
+git clone https://github.com/your-username/Conversational-Book-Recommendation-Assistant-using-RAG.git
+cd Conversational-Book-Recommendation-Assistant-using-RAG
